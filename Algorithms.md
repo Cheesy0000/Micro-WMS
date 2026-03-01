@@ -101,7 +101,7 @@ The same logic runs inside `CalculateBatchDistance` to compute distances without
 
 ## 3. 2-OPT (Phase 2 of Route Optimization)
 
-**Used in**: `GenerateMapPath`
+**Used in**: `GenerateMapPath`, `CalculateBatchDistance`
 
 Swaps order of locations to visit to see if total distance goes down. The swap is sequential (one at a time).
 

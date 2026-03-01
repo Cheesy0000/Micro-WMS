@@ -164,7 +164,7 @@ All code is in a single standard module organized into 6 sections.
 | `ReconstructPath` | CameFrom dict, Current | Collection | Traces parent chain backwards from goal to start, returns path in forward order. |
 | `IsWall` | ws, X, Y | Boolean | Returns True if cell is out of bounds, equals 1, or contains "1". Value "2" (dock) is not a wall. |
 
-### Math Utils
+### MOD 2 (cont.): Math Utils
 
 | Function/Sub | Description |
 |-------------|-------------|
@@ -202,6 +202,7 @@ All code is in a single standard module organized into 6 sections.
 
 **ConfirmOperations Flow**:
 1. Register any unknown SKUs (prompt user for capacity)
+   ![New SKU registration prompt](images/New_SKU.png)
 2. Assign Order ID and confirm with user
 3. Validate: check bin capacity won't be exceeded
 4. Auto-assign bins (see Consolidation Logic below). For picks, auto-find bin with enough stock (`FindBinForSKU`).
@@ -224,6 +225,10 @@ When a PUTAWAY has no location assigned, the system tries to consolidate before 
 **Step 3 — Assign a new bin** (`FindBestEmptyBin`): If no partial bin exists (or the user declined consolidation), the system asks the user for a preferred rank (A, B, or C) and finds the closest empty bin of that rank using Manhattan distance from the dock.
 
 ![Bin rank assignment prompt](images/Bin_Assign.png)
+
+**Result** — after assignment, the bin database in Map_Helper reflects the new inventory:
+
+![Assigned bin locations](images/Location_Assignment.png)
 
 **Why consolidation matters**: Without it, every putaway would open a new bin even if the same SKU is already sitting half-empty somewhere. This wastes bin space, spreads inventory thin, and creates extra walking during picks since the same SKU ends up in multiple locations.
 
