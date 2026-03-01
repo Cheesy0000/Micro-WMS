@@ -15,11 +15,13 @@ All VBA code lives in a single module: **Module1** (1089 lines).
 
 ## Sheet 1: Form
 
+![Form sheet](images/Form.png)
+
 **Purpose**: Primary input form where users enter pick/putaway orders before confirming.
 
 | Column | Header | Data Type | Description |
 |--------|--------|-----------|-------------|
-| A | SKU | Text | Item identifier (e.g., "AAA", "BBB") |
+| A | SKU | Text | Item identifier (e.g., "OBJ_A", "OBJ_B") |
 | B | Qty | Number | Quantity of units to pick or put away |
 | C | Operation | Text | Must be "PICK" or "PUTAWAY" |
 | D | Location Assigned | Text | Bin name (e.g., "A1-R1-L1-A"). Left blank for auto-assignment. Comma-separated for multi-stop. |
@@ -31,6 +33,8 @@ All VBA code lives in a single module: **Module1** (1089 lines).
 ---
 
 ## Sheet 2: Map_Grid
+
+![Map_Grid with generated route](images/Map_Grid.png)
 
 **Purpose**: Visual 2D representation of the warehouse floor, drawn to scale from an AutoCAD drawing.
 
@@ -63,6 +67,8 @@ All generated shapes are named `PathLine_Generated` or `PathLabel_Generated` so 
 ---
 
 ## Sheet 3: Map_Helper
+
+![Map_Helper sheet](images/Map_Helper.png)
 
 **Purpose**: Backend database combining the bin registry, coordinate lookup, distance/rank analysis, SKU master list, and live inventory state.
 
@@ -114,6 +120,8 @@ Example: `A3-R2-L2-A`
 ---
 
 ## Sheet 4: Transaction_History
+
+![Transaction History](images/Transaction_History.png)
 
 **Purpose**: Permanent, append-only log of every confirmed operation. Used by `RebuildInventoryState` to replay and calculate current inventory.
 
@@ -196,12 +204,28 @@ All code is in a single standard module organized into 6 sections.
 1. Register any unknown SKUs (prompt user for capacity)
 2. Assign Order ID and confirm with user
 3. Validate: check bin capacity won't be exceeded
-4. Auto-assign bins: try consolidation first (`FindPartialBin`), then find best empty bin by rank (`FindBestEmptyBin`). For picks, auto-find bin with enough stock (`FindBinForSKU`).
+4. Auto-assign bins (see Consolidation Logic below). For picks, auto-find bin with enough stock (`FindBinForSKU`).
 5. Verify all rows have a location
 6. Calculate batch distance (`CalculateBatchDistance`)
 7. Log each line to Transaction_History
 8. Rebuild inventory state
 9. Prompt to generate map visualization
+
+#### Consolidation Logic (PUTAWAY Auto-Assignment)
+
+When a PUTAWAY has no location assigned, the system tries to consolidate before opening a new bin:
+
+**Step 1 — Find a partial bin** (`FindPartialBin`): Scans every bin in Map_Helper looking for one that already holds the same SKU with remaining space. If multiple bins qualify, it picks the one with the **least remaining space** (best-fit strategy). This keeps bins as full as possible and avoids spreading the same SKU across many half-empty bins.
+
+**Step 2 — Consolidate or split**:
+- If the partial bin has **enough space** for the full quantity, the user is prompted: *"Consolidate to A2-R1-L1-A? (Space: 30)"*. If they accept, that bin is assigned.
+- If the partial bin exists but **doesn't have enough space**, the user is told to split the line: put what fits in the partial bin on one Form row and the remainder on another.
+
+**Step 3 — Assign a new bin** (`FindBestEmptyBin`): If no partial bin exists (or the user declined consolidation), the system asks the user for a preferred rank (A, B, or C) and finds the closest empty bin of that rank using Manhattan distance from the dock.
+
+![Bin rank assignment prompt](images/Bin_Assign.png)
+
+**Why consolidation matters**: Without it, every putaway would open a new bin even if the same SKU is already sitting half-empty somewhere. This wastes bin space, spreads inventory thin, and creates extra walking during picks since the same SKU ends up in multiple locations.
 
 ### MOD 6: Mapping & Visualization Engine
 

@@ -27,22 +27,29 @@ My first instinct was Python + SQL, but the team wouldn't be able to maintain it
 
 ## How It Works
 
-```
-User fills the Form (SKU, Qty, PICK/PUTAWAY)
-        |
-        v
-  ConfirmOperations (VBA)
-    |-- Auto-assigns bins
-    |-- Logs to Transaction_History
-    |-- Rebuilds inventory state
-    |-- Generates route map
-        |
-        v
-  Colored path drawn on Map_Grid
-  with total walking distance
-```
+**1. Fill the Form** — enter SKUs, quantities, and operations (PICK or PUTAWAY). Leave Location blank for auto-assignment.
 
-The workbook has 4 sheets: **Form** (input), **Map_Grid** (visual map), **Map_Helper** (bin database + inventory), and **Transaction_History** (permanent log). All logic lives in a single VBA module.
+![Form sheet](images/Form.png)
+
+**2. Confirm** — the system auto-assigns bins. For putaways, it asks your preferred rank (A/B/C) and finds the closest available bin.
+
+![Bin rank assignment prompt](images/Bin_Assign.png)
+
+**3. Locations are assigned** — bins are filled in the Form and recorded in Map_Helper.
+
+![Assigned locations in Map_Helper](images/Location_Assignment.png)
+
+**4. Route is generated** — colored arrows show the optimized walking path on the warehouse map.
+
+![Generated route on Map_Grid](images/Map_Grid.png)
+
+**5. Everything is logged** — each transaction is recorded with distances, stock levels, and bin ranks.
+
+![Transaction History](images/Transaction_History.png)
+
+The full bin database, inventory state, and ABC rankings live in **Map_Helper**.
+
+![Map_Helper sheet](images/Map_Helper.png)
 
 See [Excel_Structure.md](Excel_Structure.md) for the complete sheet schemas and VBA function reference.
 
@@ -86,7 +93,13 @@ For a new warehouse layout, see the setup sequence in [Excel_Structure.md](Excel
 ├── images/
 │   ├── Drawing1-Model.png     Warehouse floor plan export
 │   ├── AutoCAD_settings.png   Export settings reference
-│   └── A_star.png             A* algorithm example
+│   ├── A_star.png             A* algorithm example
+│   ├── Form.png               Form sheet with sample order
+│   ├── Map_Grid.png           Generated route visualization
+│   ├── Map_Helper.png         Bin database and inventory state
+│   ├── Transaction_History.png  Transaction log
+│   ├── Bin_Assign.png         Rank preference prompt
+│   └── Location_Assignment.png  Assigned bin locations
 ├── Algorithms.md              A*, Nearest Neighbor, 2-OPT documentation
 ├── AutoCAD_to_Excel.md        How the drawing became the Excel map
 └── Excel_Structure.md         Sheet schemas and VBA reference
