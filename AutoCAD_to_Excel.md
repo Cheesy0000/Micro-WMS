@@ -72,15 +72,19 @@ Since the cells are perfectly square, moving one cell in any direction (up, down
 
 ### Tracing the Layout onto the Grid
 
-Once the exported image is inserted behind the grid as a background, you manually fill in the cells by looking at what's underneath:
+![Grid with transparent AutoCAD image overlay](images/Grid_Tracing.png)
 
-1. Place the exported image behind the cells (Insert -> Pictures, then send to back)
+The exported image is placed over the grid and made **transparent** so you can see both the drawing and the cells at the same time. Then you manually fill in the cells by looking at what's underneath:
+
+1. Insert the exported image (Insert -> Pictures), resize it to fit the grid, and set it to **transparent** so the cells show through
 2. Cells that cover a wall or obstacle get a `1`
-3. The cell covering the dock/entry point gets a `2`
-4. Cells where bins are located get the bin name (e.g., `A1-R1-L1-A`)
+3. The cell where the dock/entry point is gets a `2` (this is where the worker starts and where pathfinding begins)
+4. Cells where bin locations are get the bin name (e.g., `A1-R1-L1-A`)
 5. Everything else stays empty (open floor the worker can walk through)
 
-The image is just a visual guide for this step. Once the grid is filled in, the pathfinding algorithm only reads the cell values, not the image.
+Once the grid is filled in, run `Analyze_Map_Locations`. This calculates the walking distance from the dock to every bin, assigns ABC ranks (A = closest, B = medium, C = farthest), and **color-codes the bin cells** on the map (green = A, yellow = B, red = C). It also populates the Map_Helper table with all bin coordinates, distances, and ranks.
+
+The image is just a visual guide. The pathfinding algorithm only reads the cell values, not the image. This also makes the layout **very easy to modify**: you can rename bins, move locations to different cells, add or remove walls, or rearrange the entire layout just by editing cell values. After any change, re-run `Analyze_Map_Locations` to recalculate distances and ranks.
 
 ---
 
