@@ -167,9 +167,9 @@ Every time an order is confirmed, the system **replays the entire Transaction_Hi
 
 This is the main macro that runs when you click **Confirm**. It handles the full order process:
 
+![New SKU registration prompt](images/New_SKU.png)
+
 1. Registers any new SKUs (prompts you for capacity)
-   ![New SKU registration prompt](images/New_SKU.png)
-   
 2. Assigns an Order ID
 3. Checks that quantities don't exceed bin capacity
 4. Auto-assigns bins (see Consolidation Logic below). For picks, finds a bin with enough stock.
