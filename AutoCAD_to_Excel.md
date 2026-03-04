@@ -1,6 +1,6 @@
 # AutoCAD to Excel: Creating a Scale Map
 
-How the warehouse floor plan was drawn to scale in AutoCAD and transferred into Excel to enable accurate distance calculations during picking and putaway — essentially a GPS map that tells you exactly where to go and what to get.
+How the warehouse floor plan was drawn to scale in AutoCAD and transferred into Excel to enable accurate distance calculations during picking and putaway. Essentially a GPS map that tells you exactly where to go and what to get.
 
 ## The Original Drawing
 
@@ -16,14 +16,13 @@ To access or modify the original AutoCAD drawing, open `Drawing1.dwg` from the [
 
 ### Paper Size
 
-The goal was to export a high-resolution screenshot without distorting the scale.
+The goal was to export the drawing as a high-resolution image without stretching or squishing it. If the image is distorted, the walls and racks in the Excel grid won't line up with their real positions, and the distance calculations will be wrong. The export resolution (paper size in AutoCAD) needs to have the same aspect ratio as the drawing itself to avoid this.
 
-| Setting | Value | Reason |
-|---------|-------|--------|
-| Initial attempt | Sun Hi-Res (1600 x 1280 px) | High-res preset, but aspect ratio didn't match |
-| Drawing dimensions | 620" x 500" | Actual drawing size |
-| Drawing ratio | 620/500 = **1.24** | Narrower than 1600/1280 = 1.25 |
-| Custom paper size | **1587W x 1280H** | 1587/1280 = 1.24, matches the drawing exactly |
+The drawing is 620" wide x 500" tall, which gives a ratio of 620/500 = **1.24**.
+
+The first attempt used a built-in preset (Sun Hi-Res: 1600 x 1280 px), but its ratio is 1600/1280 = **1.25**, slightly wider than the drawing. This would stretch the image horizontally, throwing off the scale.
+
+The fix was to create a custom paper size of **1587W x 1280H**, because 1587/1280 = **1.24**, an exact match.
 
 To create the custom paper size: Properties -> Custom Paper Sizes -> Add
 
@@ -44,6 +43,10 @@ Plot style table -> select `monochrome.ctb` -> click the printer icon next to it
 ### Making Cells Square
 
 Before inserting the image, the Excel cells had to be converted to perfect squares: **15 height x 2.18 width**.
+
+Why square? The A* pathfinding algorithm moves one cell at a time (up, down, left, right). If cells were rectangular, moving one cell sideways would cover a different real-world distance than moving one cell up or down. Square cells mean one step = the same distance in every direction, which keeps the distance calculations accurate.
+
+Smaller cells would mean higher precision (more cells = more detail in the map), but A* has to check more cells to find a path, which slows it down significantly. For a larger or more detailed warehouse, you'd want to switch to a faster algorithm like **Jump Point Search** which skips over open floor instead of checking every cell one by one. The current 41x33 grid is a good balance between precision and speed for this warehouse.
 
 ### Grid Dimensions
 
@@ -67,6 +70,18 @@ To preserve the 1.24 aspect ratio in Excel, the grid was set to **41 columns (A 
 
 Since the cells are perfectly square, moving one cell in any direction (up, down, left, right) equals walking **0.3848 meters** in the real warehouse. This value is stored as `TILE_SCALE` in the VBA macro and is used to convert grid steps into real distances.
 
+### Tracing the Layout onto the Grid
+
+Once the exported image is inserted behind the grid as a background, you manually fill in the cells by looking at what's underneath:
+
+1. Place the exported image behind the cells (Insert -> Pictures, then send to back)
+2. Cells that cover a wall or obstacle get a `1`
+3. The cell covering the dock/entry point gets a `2`
+4. Cells where bins are located get the bin name (e.g., `A1-R1-L1-A`)
+5. Everything else stays empty (open floor the worker can walk through)
+
+The image is just a visual guide for this step. Once the grid is filled in, the pathfinding algorithm only reads the cell values, not the image.
+
 ---
 
 ## Key AutoCAD Technique: m2p (Midpoint Between Two Points)
@@ -76,7 +91,7 @@ The most important function for making the drawing accurate was `m2p`. It finds 
 **How it works:**
 1. Start moving an object (e.g., a rack)
 2. Instead of clicking a random anchor point, type `m2p`
-3. Select the two furthest points on opposite edges of the object — this snaps to its true center
+3. Select the two furthest points on opposite edges of the object. This snaps to its true center
 4. For the destination, type `m2p` again and select the two opposite edges of the target area
 5. The object drops perfectly into the center of the target
 

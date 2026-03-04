@@ -6,8 +6,6 @@ This document explains the three algorithms implemented in the VBA macro (`Modul
 
 ## 1. A* Algorithm
 
-**VBA Functions**: `FindPath`, `ProcessNeighbor`, `ReconstructPath`, `IsWall`
-
 Finds the shortest path to take to move from 1 point to another on the map without hitting walls.
 
 ### How It Works
@@ -34,12 +32,12 @@ A tries to move down: G = 1, H = |3-2| + |1-3| = 3, F = 1+3 = 4.
 A chooses to move top because it's the 1st one it found.
 
 **Step 2**
-A tries to move right: G = 2, H = |1-2| + |2-3| = 2, F = 4 >= 4.
+A tries to move right: G = 2, H = |1-2| + |2-3| = 2, F = 4. This is equal to our best score (4), so this path is still worth exploring.
 A already visited (2,1) which is in a closed list. A cannot go back.
 A chooses to move to the right.
 
 **Step 3**
-A tries to move right: G = 3, H = |1-2| + |3-3| = 1, F = 4 >= 4.
+A tries to move right: G = 3, H = |1-2| + |3-3| = 1, F = 4. Still equal to our best score, so we keep going.
 A already visited (1,1) which is in a closed list. A cannot go back.
 A chooses to move to the right.
 
@@ -48,21 +46,19 @@ A found B, the road taken is drawn.
 
 **Backtracking**: If the road taken by the choice made at step 1 happened to be blocked by a wall or if the road happened to drift away from B which would make F increase greater than 4, the algorithm would go back to step 1 where the 2nd option had a lower F and try exploring it.
 
-### How It's Used in the Macro
+### How It's Used
 
-The A* algorithm is the foundation used by multiple macros:
+A* is the foundation of the system. It's used in three places:
 
-- **`GenerateMapPath`** calls `FindPath` between each stop on the optimized route and draws the result as colored arrows on the Map_Grid sheet.
-- **`CalculateBatchDistance`** calls `FindPath` to calculate total walking distance without drawing anything, used when logging transactions.
-- **`Analyze_Map_Locations`** calls `FindPath` for every bin to compute round-trip distances from the dock, which determines ABC rankings.
+- **Drawing the route** — finds the path between each stop and draws colored arrows on the map
+- **Calculating distance** — computes total walking distance when logging a transaction
+- **ABC ranking** — measures how far each bin is from the dock to classify it as A, B, or C
 
-**Grid rules**:
-- Cell value `1` = wall (impassable)
-- Cell value `2` = dock/start (walkable)
-- Empty cells = open floor (walkable)
-- Bin name cells = storage locations (walkable)
-
-The algorithm uses 4 global `Scripting.Dictionary` objects (`OpenList`, `CameFrom`, `gScore`, `fScore`) for performance. Coordinates are passed as comma-separated strings (e.g., `"5,10"`).
+The map grid tells A* what it can and can't walk through:
+- `1` = wall (can't walk through)
+- `2` = dock / starting point
+- Empty cells = open floor
+- Bin names = storage locations (walkable)
 
 ### Pros and Cons
 
@@ -74,8 +70,6 @@ The algorithm uses 4 global `Scripting.Dictionary` objects (`OpenList`, `CameFro
 
 ## 2. Nearest Neighbor (Phase 1 of Route Optimization)
 
-**Used in**: `GenerateMapPath`, `CalculateBatchDistance`
-
 When a worker has multiple items to pick or put away, we need to decide what order to visit them. This is the "traveling salesperson problem" (finding the fastest route to pick all items). We solve it using a two-step strategy. Phase 1 is Nearest Neighbor.
 
 ### How It Works
@@ -86,11 +80,9 @@ Finds a quick order in which to visit locations.
 **Step 2**: It picks the location with the smallest distance.
 **Step 3**: It repeats the scan for the next closest location.
 
-### How It's Used in the Macro
+### How It's Used
 
-In `GenerateMapPath`, after reading all bin coordinates from the Form, the macro runs Nearest Neighbor using Manhattan distance (`Abs(CurrX - Loc(0)) + Abs(CurrY - Loc(1))`). It builds arrays `OptSKU`, `OptX`, `OptY` in visit order. This gives a "good enough" initial route that Phase 2 then improves.
-
-The same logic runs inside `CalculateBatchDistance` to compute distances without visualization.
+After you confirm an order, the system reads all the bin locations from the Form and sorts them using Nearest Neighbor — starting from the dock, it always picks the closest bin next. This gives a "good enough" initial route that Phase 2 (2-OPT) then improves.
 
 ### Pros and Cons
 
@@ -100,8 +92,6 @@ The same logic runs inside `CalculateBatchDistance` to compute distances without
 ---
 
 ## 3. 2-OPT (Phase 2 of Route Optimization)
-
-**Used in**: `GenerateMapPath`, `CalculateBatchDistance`
 
 Swaps order of locations to visit to see if total distance goes down. The swap is sequential (one at a time).
 
@@ -120,16 +110,11 @@ We swap D-E. Distance = 98m > 95m. We revert to step 1.
 
 The algorithm keeps looping until no swap improves the total distance.
 
-### How It's Used in the Macro
+### How It's Used
 
-After Nearest Neighbor builds the initial visit order, the macro enters a `Do...Loop While Improved` loop. For every pair of stops (i, k), it calculates:
+After Nearest Neighbor builds the initial visit order, 2-OPT takes over and tries every possible pair swap. For each pair, it checks: would reversing this segment of the route make the total distance shorter? If yes, it locks in the swap and starts over. It keeps looping until no swap improves the route.
 
-- **D1** = current cost of edges (A->B) + (C->D)
-- **D2** = cost if we reversed the segment between i and k: (A->C) + (B->D)
-
-If D2 < D1, it reverses the segment between positions i and k (swapping SKUs, coordinates, operations, and location collections in parallel). It sets `Improved = True` and restarts the loop. The loop exits only when a full pass finds no improvement.
-
-The distance comparison uses Manhattan distance between the optimized coordinate arrays, not A* pathfinding. A* runs afterward to draw the actual wall-avoiding paths.
+The distance comparisons use straight-line (Manhattan) distance for speed. A* runs afterward to draw the actual wall-avoiding paths.
 
 ### Pros and Cons
 

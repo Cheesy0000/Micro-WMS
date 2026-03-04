@@ -81,20 +81,8 @@ For a new warehouse layout, see the setup sequence in [Excel_Structure.md](Excel
 
 ```
 ├── Warehouse.xlsm            Main workbook (all sheets + VBA)
-├── AutoCAD/
-│   ├── Drawing1.dwg           Original AutoCAD drawing
-│   └── Drawing1.bak           AutoCAD backup
-├── images/
-│   ├── Drawing1-Model.png     Warehouse floor plan export
-│   ├── AutoCAD_settings.png   Export settings reference
-│   ├── A_star.png             A* algorithm example
-│   ├── Form.png               Form sheet with sample order
-│   ├── Map_Grid.png           Generated route visualization
-│   ├── Map_Helper.png         Bin database and inventory state
-│   ├── Transaction_History.png  Transaction log
-│   ├── Bin_Assign.png         Rank preference prompt
-│   ├── New_SKU.png            New SKU registration prompt
-│   └── Location_Assignment.png  Assigned bin locations
+├── AutoCAD/                   Original AutoCAD drawing files
+├── images/                    Screenshots and diagrams used in the docs
 ├── Algorithms.md              A*, Nearest Neighbor, 2-OPT documentation
 ├── AutoCAD_to_Excel.md        How the drawing became the Excel map
 └── Excel_Structure.md         Sheet schemas and VBA reference

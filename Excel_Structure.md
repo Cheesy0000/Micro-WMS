@@ -141,88 +141,54 @@ Example: `A3-R2-L2-A`
 
 ---
 
-## VBA Module Structure (Module1.bas)
+## What the VBA Code Does
 
-All code is in a single standard module organized into 6 sections.
+All the automation lives in a single VBA module (Module1). Here's what each part handles:
 
-### MOD 1: Globals & Constants
+### Pathfinding
 
-| Name | Type | Value | Purpose |
-|------|------|-------|---------|
-| `TILE_SCALE` | Public Const Double | 0.3848 | Meters per grid cell (converts steps to real distance) |
-| `OpenList` | Public Object (Dictionary) | — | A* open set |
-| `CameFrom` | Public Object (Dictionary) | — | A* parent tracking for path reconstruction |
-| `gScore` | Public Object (Dictionary) | — | A* cost-from-start |
-| `fScore` | Public Object (Dictionary) | — | A* estimated total cost (G + H) |
+Uses the **A\* algorithm** to find the shortest path between two points on the map while avoiding walls. Give it a start and end point, and it returns the step-by-step path. See [Algorithms.md](Algorithms.md) for a full explanation.
 
-### MOD 2: Pathfinding Core (A*)
+### Bin Assignment & Inventory Helpers
 
-| Function/Sub | Parameters | Returns | Description |
-|-------------|------------|---------|-------------|
-| `FindPath` | StartStr, EndStr (e.g. "5,10") | Collection of "x,y" strings | A* shortest path between two grid coordinates. Uses Manhattan distance heuristic. Avoids cells with value "1". |
-| `ProcessNeighbor` | nX, nY, Current, eX, eY, ws | — | Evaluates one neighbor cell (up/down/left/right) and updates open list if path improves. |
-| `ReconstructPath` | CameFrom dict, Current | Collection | Traces parent chain backwards from goal to start, returns path in forward order. |
-| `IsWall` | ws, X, Y | Boolean | Returns True if cell is out of bounds, equals 1, or contains "1". Value "2" (dock) is not a wall. |
+These handle the logic behind finding the right bin:
 
-### MOD 2 (cont.): Math Utils
+- **Find a partial bin** — looks for a bin that already holds the same SKU with space left (best-fit: picks the fullest one)
+- **Find the best empty bin** — finds the closest empty bin of a given rank (A, B, or C) from the dock
+- **Find a bin for picking** — locates a bin with enough stock of the requested SKU
+- **Register a new SKU** — adds a new item and its bin capacity to the system
+- **Check availability** — reports how many empty bins are left per rank (A, B, C)
 
-| Function/Sub | Description |
-|-------------|-------------|
-| `ReverseSegment` | Reverses a segment of parallel arrays (SKU, X, Y) in-place. Used by 2-OPT. |
-| `ReverseSegmentCollection` | Reverses a segment of a Collection array in-place. |
-| `GetGradientColor` | Maps a 0.0-1.0 ratio to a green-to-red RGB gradient for path coloring. |
+### Inventory State Engine
 
-### MOD 3: Map Helpers
+Every time an order is confirmed, the system **replays the entire Transaction_History** from top to bottom to rebuild the current inventory. PUTAWAYs add stock, PICKs subtract it. If a bin reaches 0, it's marked as EMPTY. This ensures the inventory is always accurate without manual counting.
 
-| Function/Sub | Parameters | Returns | Description |
-|-------------|------------|---------|-------------|
-| `FindBestEmptyBin` | PreferredRank, RequiredQty, ExcludeData, TargetSKU | Bin name or "FULL" | Finds the closest empty bin of the requested rank that fits the SKU capacity. Uses Manhattan distance from dock. Excludes bins already allocated in the current session. |
-| `GetAvailabilityStats` | wsHelper | String | Returns count of empty bins per rank: "Empty: A=X, B=Y, C=Z". |
-| `FindPartialBin` | TargetSKU, wsHelper | "BinName\|Space" or "" | Finds a bin already holding this SKU with remaining space. Uses best-fit strategy (smallest remaining space). |
-| `FindBinForSKU` | TargetSKU, ValQty | Bin name or "" | Finds a bin containing enough of the target SKU to fulfill a pick. |
-| `GetSKUCapacity` | TargetSKU, wsHelper | Double (-1 if not found) | VLOOKUP on XEU:XEV to get the max capacity for a SKU. |
-| `RegisterSKU` | TargetSKU, Capacity, wsHelper | — | Appends a new SKU and its capacity to the XEU:XEV registry. |
-| `GetNextOrderID` | ws | Long | Returns MAX(Column A) + 1. Defaults to 1000 if empty. |
+### Confirm Operations (Main Workflow)
 
-### MOD 4: Inventory State Engine
+This is the main macro that runs when you click **Confirm**. It handles the full order process:
 
-| Sub | Description |
-|-----|-------------|
-| `RebuildInventoryState` | **The core state engine.** Resets all bins to EMPTY/0, then replays every row in Transaction_History chronologically. PUTAWAY adds qty and sets SKU. PICK subtracts qty and clears SKU if qty reaches 0. Writes final state to Map_Helper columns XFC (Current SKU) and XFD (Current Qty). |
-
-**Data flow**: Transaction_History (cols D,E,G,J) -> Dictionary replay -> Map_Helper (XFC, XFD)
-
-### MOD 5: Operations & Logging
-
-| Sub | Description |
-|-----|-------------|
-| `ConfirmOperations` | **Main user-facing macro.** Reads Form rows, registers unknown SKUs (prompts for capacity), validates putaway quantities against bin capacity, auto-assigns empty bins for putaways (with consolidation logic via `FindPartialBin`) and finds bins for picks, logs each line to Transaction_History, rebuilds inventory state, and optionally generates the map. |
-| `LogTransaction` | Writes one row to Transaction_History with all 11 columns (Order ID, Date, Time, SKU, Qty, New Stock Level, Type, Distance from Start, Total Order Distance, Bin Location, Bin Rank). Looks up distance and current qty via XLOOKUP on Map_Helper. |
-| `Clear_Form` | Clears Form data (rows 2+) and calls `ClearMap` to remove all generated shapes from Map_Grid. |
-
-**ConfirmOperations Flow**:
-1. Register any unknown SKUs (prompt user for capacity)
+1. Registers any new SKUs (prompts you for capacity)
    ![New SKU registration prompt](images/New_SKU.png)
-2. Assign Order ID and confirm with user
-3. Validate: check bin capacity won't be exceeded
-4. Auto-assign bins (see Consolidation Logic below). For picks, auto-find bin with enough stock (`FindBinForSKU`).
-5. Verify all rows have a location
-6. Calculate batch distance (`CalculateBatchDistance`)
-7. Log each line to Transaction_History
-8. Rebuild inventory state
-9. Prompt to generate map visualization
+2. Assigns an Order ID
+3. Checks that quantities don't exceed bin capacity
+4. Auto-assigns bins (see Consolidation Logic below). For picks, finds a bin with enough stock.
+5. Makes sure every row has a location
+6. Calculates total walking distance for the order
+7. Logs each line to Transaction_History
+8. Rebuilds the inventory state
+9. Asks if you want to generate the route map
 
 #### Consolidation Logic (PUTAWAY Auto-Assignment)
 
 When a PUTAWAY has no location assigned, the system tries to consolidate before opening a new bin:
 
-**Step 1 — Find a partial bin** (`FindPartialBin`): Scans every bin in Map_Helper looking for one that already holds the same SKU with remaining space. If multiple bins qualify, it picks the one with the **least remaining space** (best-fit strategy). This keeps bins as full as possible and avoids spreading the same SKU across many half-empty bins.
+**Step 1 — Find a partial bin**: Scans every bin looking for one that already holds the same SKU with remaining space. If multiple bins qualify, it picks the one with the **least remaining space** (best-fit). This keeps bins as full as possible.
 
 **Step 2 — Consolidate or split**:
-- If the partial bin has **enough space** for the full quantity, the user is prompted: *"Consolidate to A2-R1-L1-A? (Space: 30)"*. If they accept, that bin is assigned.
-- If the partial bin exists but **doesn't have enough space**, the user is told to split the line: put what fits in the partial bin on one Form row and the remainder on another.
+- If the partial bin has **enough space** for the full quantity, you're prompted: *"Consolidate to A2-R1-L1-A? (Space: 30)"*. Accept and that bin is assigned.
+- If the partial bin **doesn't have enough space**, you're told to split the line: put what fits on one row and the remainder on another.
 
-**Step 3 — Assign a new bin** (`FindBestEmptyBin`): If no partial bin exists (or the user declined consolidation), the system asks the user for a preferred rank (A, B, or C) and finds the closest empty bin of that rank using Manhattan distance from the dock.
+**Step 3 — Assign a new bin**: If no partial bin exists (or you declined), the system asks for a preferred rank (A, B, or C) and finds the closest available empty bin.
 
 ![Bin rank assignment prompt](images/Bin_Assign.png)
 
@@ -230,24 +196,28 @@ When a PUTAWAY has no location assigned, the system tries to consolidate before 
 
 ![Assigned bin locations](images/Location_Assignment.png)
 
-**Why consolidation matters**: Without it, every putaway would open a new bin even if the same SKU is already sitting half-empty somewhere. This wastes bin space, spreads inventory thin, and creates extra walking during picks since the same SKU ends up in multiple locations.
+**Why consolidation matters**: Without it, every putaway would open a new bin even if the same SKU is already sitting half-empty somewhere. This wastes bin space, spreads inventory thin, and creates extra walking during picks.
 
-### MOD 6: Mapping & Visualization Engine
+### Map Visualization
 
-| Sub/Function | Description |
-|-------------|-------------|
-| `GenerateMapPath` | **Main visualization macro.** Reads Form, resolves bin coordinates from Map_Helper, optimizes visit order with Nearest Neighbor + 2-OPT, runs A* pathfinding between each stop, draws colored path lines and target markers, draws stats box with total distance. Writes total distance to cell AQ1. |
-| `ClearMap` | Removes cell coloring from A1:AO33 and deletes all shapes named `PathLine_Generated` or `PathLabel_Generated`. |
-| `DrawGPSPath` | Draws arrow connectors between A* path steps with gradient coloring (green=start, red=end). Adds random jitter to prevent overlapping lines on revisited paths. |
-| `DrawTargetMarker` | Places a shape (Oval/Triangle/Rectangle by level) at bin coordinates. Red=PICK, Green=PUTAWAY. Offsets when multiple markers share the same cell. |
-| `DrawTinyLabel` | Adds a small text box with the SKU name next to a marker. |
-| `DrawStatsBox` | Draws a dark rounded rectangle showing "TOTAL: X.Xm" in the top-right area of Map_Grid. |
-| `CalculateBatchDistance` | Calculates total walking distance for the current Form order using NN + A* pathfinding (no visualization). Returns distance in meters. |
-| `Analyze_Map_Locations` | Calculates round-trip A* distance for every bin, writes to XFA. Classifies bins into ABC ranks using 20th/50th percentile thresholds, writes to XFB. Color-codes both Map_Helper rank cells and Map_Grid floor cells. |
-| `SetupBinTable` | Initializes Map_Helper headers and dynamic array formulas (SORT/UNIQUE/MAP/LAMBDA) that extract bin names and coordinates from Map_Grid. Run once when setting up a new map. |
-| `SuggestEmptyBin` | User-facing tool. Prompts for a rank preference and shows the closest available empty bin. |
-| `GetBinDistance` | XLOOKUP wrapper returning the pre-calculated distance (XFA) for a given bin name. |
-| `VisualizeBin` | Places a marker on Map_Grid for a single bin by looking up its coordinates from Map_Helper. |
+After confirming an order, you can generate a visual route on the Map_Grid sheet:
+
+1. Reads the bins from the Form and looks up their coordinates
+2. Sorts them into the best visit order using **Nearest Neighbor** (closest first)
+3. Improves the order using **2-OPT** (swaps pairs of stops to reduce total distance)
+4. Runs **A\*** between each stop to find wall-avoiding paths
+5. Draws **colored arrows** (green = start, red = end) showing the walking route
+6. Places **markers** at each bin (shape = bin level, color = PICK red / PUTAWAY green)
+7. Shows a **stats box** with the total walking distance in meters
+
+The **Clear** button removes all generated paths and markers.
+
+### Setup Tools (Run Once)
+
+These are used when setting up a new warehouse layout:
+
+- **SetupBinTable** — creates the formulas in Map_Helper that automatically extract bin names and coordinates from the map
+- **Analyze_Map_Locations** — calculates the walking distance to every bin and assigns ABC ranks based on how close they are to the dock
 
 ---
 
