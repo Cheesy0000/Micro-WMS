@@ -60,6 +60,8 @@ To preserve the 1.24 aspect ratio in Excel, the grid was set to **41 columns (A 
 
 *33 rows was chosen to fit the screen well while keeping high enough precision (lots of cells).*
 
+**Scaling to a bigger warehouse**: If your drawing is larger, you'd increase the number of rows and columns to keep the same level of detail. The grid range (A1:AO33) is referenced in the VBA code and in the Map_Helper formulas, so you'd need to update those references to match the new range. You'd also need to recalculate `TILE_SCALE` since each cell would represent a different real-world distance.
+
 ### Real-World Scale
 
 | Metric | Value |
